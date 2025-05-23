@@ -37,34 +37,32 @@ public function upload(Request $request)
         $fullPath = storage_path("app/public/" . $filePath);
         $response = Http::attach(
         'file', file_get_contents($fullPath), $uploadedFile->getClientOriginalName()
-        )->post('http://127.0.0.1:8000/predict');
-
+        )->post('http://fastapi-detect.onrender.com/predict/');
+//fastapi-detect.onrender.com/predict/
     if ($response->successful()) {
         $result = $response->json();
+        $isFake = strtolower($result['prediction']) === 'fake' ? 1 : 0;
+        $confidence = $result['confidence'];
         $file->update([
-            'is_fake' => $result['is_fake'] ?? null,
-            'confidence_score' => $result['confidence_score'] ?? null,
+            'is_fake' => $isFake,
+            'confidence_score' => $confidence,
             'check_date' => now(),
         ]);
-    }    $fullPath = storage_path("app/public/" . $filePath);
+        $verdict = $isFake ? 'Fake' : 'Real';
 
-    $response = Http::attach(
-        'file', file_get_contents($fullPath), $uploadedFile->getClientOriginalName()
-    )->post('http://127.0.0.1:8000/predict');
-
-    if ($response->successful()) {
-        $result = $response->json();
-
-        $file->update([
-            'is_fake' => $result['is_fake'] ?? null,
-            'confidence_score' => $result['confidence_score'] ?? null,
-            'check_date' => now(),
-        ]);
-    }
         return response()->json([
             'message' => 'File uploaded and processed successfully',
+            'verdict' => $verdict,
+            'confidence' => $result['confidence_score'],
             'file' => $file
         ], 201);
+    }
+
+ // If FastAPI failed
+        return response()->json([
+            'status' => false,
+            'message' => 'File uploaded, but AI analysis failed'
+        ], 500);
     }
 // Function to display user's history files
 public function history(Request $request)
