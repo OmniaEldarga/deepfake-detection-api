@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Auth;
 class UploadController extends Controller
 {
     use HandlesImageUpload;
-public function upload(Request $request)
+
+    public function upload(Request $request)
     {
         $request->validate([
             'file' => 'required|file|mimes:jpg,jpeg,png,mp4,mov,mkv|max:102400'
@@ -23,9 +24,11 @@ public function upload(Request $request)
 
         // Selected the file type
         $fileType = in_array($uploadedFile->extension(), ['mp4', 'mov', 'mkv']) ? 'video' : 'image';
+
         // Store file
         $filePath = $this->uploadFile($uploadedFile, 'uploads');
         $fileUrl = Storage::url($filePath);
+
         // Save data to database
         $file = File::create([
             'user_id' => auth()->id(),
@@ -36,36 +39,40 @@ public function upload(Request $request)
         // File analysis with artificial intelligence
         $fullPath = storage_path("app/public/" . $filePath);
         $response = Http::attach(
-        'file', file_get_contents($fullPath), $uploadedFile->getClientOriginalName()
-        )->post('http://fastapi-detect.onrender.com/predict/');
-//fastapi-detect.onrender.com/predict/
-    if ($response->successful()) {
-        $result = $response->json();
-        $isFake = strtolower($result['prediction']) === 'fake' ? 1 : 0;
-        $confidence = $result['confidence'];
-        $file->update([
-            'is_fake' => $isFake,
-            'confidence_score' => $confidence,
-            'check_date' => now(),
-        ]);
-        $verdict = $isFake ? 'Fake' : 'Real';
+            'file', file_get_contents($fullPath), $uploadedFile->getClientOriginalName()
+        )->post('http://127.0.0.1:9000/predict/');
+        //fastapi-detect.onrender.com/predict/
+        if ($response->successful()) {
+            $result = $response->json();
 
-        return response()->json([
-            'message' => 'File uploaded and processed successfully',
-            'verdict' => $verdict,
-            'confidence' => $result['confidence_score'],
-            'file' => $file
-        ], 201);
-    }
+            $isFake = isset($result['prediction']) && strtolower($result['prediction']) === 'fake' ? 1 : 0;
+            $confidence = $result['confidence_score'] ?? $result['confidence'] ?? null;
 
- // If FastAPI failed
+            $file->update([
+                'is_fake' => $isFake,
+                'confidence_score' => $confidence,
+                'check_date' => now(),
+            ]);
+
+            $predict = $isFake ? 'Fake' : 'Real';
+
+            return response()->json([
+                'message' => 'File uploaded and processed successfully',
+                'predict' => $predict,
+                'confidence' => $confidence,
+                'file' => $file
+            ], 201);
+        }
+
+        // If FastAPI failed
         return response()->json([
             'status' => false,
             'message' => 'File uploaded, but AI analysis failed'
         ], 500);
     }
-// Function to display user's history files
-public function history(Request $request)
+
+    // Function to display user's history files
+    public function history(Request $request)
     {
         $user = Auth::user();
 
@@ -78,8 +85,9 @@ public function history(Request $request)
             'files' => $files
         ]);
     }
-// Function to delete a specific file (soft delete)
-public function destroy(File $file)
+
+    // Function to delete a specific file (soft delete)
+    public function destroy(File $file)
     {
         $user = Auth::user();
 
@@ -94,8 +102,10 @@ public function destroy(File $file)
         if ($file->file_path) {
             Storage::disk('public')->delete(str_replace('/storage/', '', $file->file_path));
         }
+
         // Soft delete record
         $file->delete();
+
         return response()->json([
             'status' => true,
             'message' => 'File deleted successfully'
