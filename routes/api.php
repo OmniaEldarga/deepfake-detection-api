@@ -22,7 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::post('/logout', [UserController::class, 'logout']);
-    Route::put('/profile/update', [ProfileController::class, 'update']);
+    Route::post('/profile/update', [ProfileController::class, 'update']);
     Route::post('/upload', [UploadController::class, 'upload']);
     Route::get('/files/history', [UploadController::class, 'history']);
     Route::delete('/files/{file}', [UploadController::class, 'destroy']);
